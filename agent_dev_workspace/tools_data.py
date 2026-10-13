@@ -3,7 +3,19 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import nltk
+from nltk.tokenize import word_tokenize
 from langchain_core.tools import tool
+
+# Ensure nltk tokenizer resources are available
+try:
+    nltk.data.find("tokenizers/punkt")
+except LookupError:
+    nltk.download("punkt", quiet=True)
+try:
+    nltk.data.find("tokenizers/punkt_tab")
+except LookupError:
+    nltk.download("punkt_tab", quiet=True)
 
 
 def _compute_describe_stats(series: pd.Series) -> Dict[str, float]:
@@ -282,4 +294,150 @@ def make_tools(session):
         session.store_result("describe_data_tool", {}, summary)
         return summary
 
-    return [list_files_tool, check_missing_tool, check_duplicates_tool, sample_data_tool, describe_data_tool]
+    @tool
+    def tokenize_tool(column: str = "text") -> Dict[str, Any]:
+        """Tokenizes document text into unigrams after lowercasing.
+
+        Updates session.dataframe['unigrams'] and session.artifacts['tokens'].
+
+        Args:
+            column: Text column to tokenize (default "text").
+
+        Returns:
+            Dict containing result_id, n_documents, and tokenized_docs.
+        """
+        result_id = session.next_result_id("tokenize")
+
+        if session.dataframe is None:
+            summary = {
+                "result_id": result_id,
+                "error": "No dataframe loaded in session.",
+                "n_documents": 0,
+                "tokenized_docs": [],
+            }
+            session.store_result("tokenize_tool", {"column": column}, summary)
+            return summary
+
+        df = session.dataframe
+
+        if column not in df.columns:
+            summary = {
+                "result_id": result_id,
+                "error": f"Column '{column}' not found in dataframe.",
+                "n_documents": 0,
+                "tokenized_docs": [],
+            }
+            session.store_result("tokenize_tool", {"column": column}, summary)
+            return summary
+
+        def _tokenize_text(val):
+            if pd.isna(val) or val is None:
+                return []
+            text_str = str(val).lower()
+            if not text_str.strip():
+                return []
+            return word_tokenize(text_str)
+
+        tokens_series = df[column].apply(_tokenize_text)
+
+        # Store unigrams column in session.dataframe
+        df["unigrams"] = tokens_series
+        tokenized_docs = tokens_series.tolist()
+
+        # Save tokens artifact into session
+        session.artifacts["tokens"] = tokenized_docs
+
+        summary = {
+            "result_id": result_id,
+            "n_documents": len(df),
+            "tokenized_docs": tokenized_docs,
+        }
+
+        session.store_result("tokenize_tool", {"column": column}, summary)
+        return summary
+
+    @tool
+    def inspect_data_tool(n: int = 2, max_characters: int = 200, seed: int = 42) -> Dict[str, Any]:
+        """Inspects category label distribution and previews random text samples per category.
+
+        Args:
+            n: Number of sample texts to peek for each category (default 2).
+            max_characters: Maximum characters to show per sample before truncating
+                           with ellipses (default 200).
+            seed: Seed value for random state sampling (default 42).
+
+        Returns:
+            Dict containing result_id, label_distribution (category_name and percentage),
+            and grouped_samples per category.
+        """
+        result_id = session.next_result_id("inspect_data")
+
+        if session.dataframe is None:
+            summary = {
+                "result_id": result_id,
+                "error": "No dataframe loaded in session.",
+                "label_distribution": [],
+                "grouped_samples": {},
+            }
+            session.store_result("inspect_data_tool", {"n": n, "max_characters": max_characters, "seed": seed}, summary)
+            return summary
+
+        df = session.dataframe
+        category_col = "category_name" if "category_name" in df.columns else ("label" if "label" in df.columns else "category")
+        text_col = "text" if "text" in df.columns else df.columns[0]
+
+        if category_col not in df.columns:
+            summary = {
+                "result_id": result_id,
+                "error": f"Category column '{category_col}' not found in dataframe.",
+                "label_distribution": [],
+                "grouped_samples": {},
+            }
+            session.store_result("inspect_data_tool", {"n": n, "max_characters": max_characters, "seed": seed}, summary)
+            return summary
+
+        # 1. Calculate label distribution table with category_name and percentage (rounded to 3 decimal places)
+        total_docs = len(df)
+        counts = df[category_col].value_counts()
+        label_distribution = []
+
+        for category_name, count in counts.items():
+            percentage = round(float((count / total_docs) * 100.0), 3)
+            label_distribution.append({
+                "category_name": str(category_name),
+                "percentage": percentage,
+            })
+
+        # 2. Randomly sample n texts per category using DataFrame.sample(random_state=seed)
+        grouped_samples = {}
+        for category_name, group in df.groupby(category_col):
+            sample_size = min(n, len(group))
+            sampled_texts = group[text_col].sample(n=sample_size, random_state=seed).tolist()
+
+            formatted_samples = []
+            for text in sampled_texts:
+                text_str = str(text) if pd.notna(text) and text is not None else ""
+                if len(text_str) > max_characters:
+                    text_str = text_str[:max_characters] + "..."
+                formatted_samples.append(text_str)
+
+            grouped_samples[str(category_name)] = formatted_samples
+
+        summary = {
+            "result_id": result_id,
+            "label_distribution": label_distribution,
+            "grouped_samples": grouped_samples,
+        }
+
+        session.store_result("inspect_data_tool", {"n": n, "max_characters": max_characters, "seed": seed}, summary)
+        return summary
+
+    return [
+        list_files_tool,
+        check_missing_tool,
+        check_duplicates_tool,
+        sample_data_tool,
+        describe_data_tool,
+        tokenize_tool,
+        inspect_data_tool,
+    ]

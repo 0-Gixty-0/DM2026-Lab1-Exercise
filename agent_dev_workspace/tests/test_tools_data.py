@@ -174,3 +174,76 @@ def test_describe_data_tool():
 
     # Assert figure was attached to pending_figure
     assert session.pending_figure is not None
+
+
+def test_tokenize_tool():
+    # Initialize fresh session and tools
+    session = SessionState()
+    premade_tools, _ = load_workspace_tools("premade_tools", session)
+    load_dataset_tool = next(t for t in premade_tools if t.name == "load_dataset_tool")
+
+    tools = make_tools(session)
+    tokenize_tool = next(t for t in tools if t.name == "tokenize_tool")
+
+    # Load fixture data into session
+    load_dataset_tool.invoke({
+        "file_path": "agent_dev/sample_fixture.csv",
+        "text_column": "text",
+        "label_column": "label"
+    })
+
+    # Invoke tokenize_tool
+    result = tokenize_tool.invoke({"column": "text"})
+
+    # Assert Known Answer #10 tokens for all 8 rows
+    expected_tokens = [
+        ["always", "alpha", "alpha", "alpha", "beta"],
+        ["always", "alpha", "alpha", "beta"],
+        ["always", "alpha", "beta"],
+        ["always", "gamma", "gamma", "gamma", "delta"],
+        ["always", "gamma", "gamma", "delta"],
+        ["always", "gamma", "delta"],
+        ["always", "gamma", "delta"],
+        [],
+    ]
+
+    assert result["tokenized_docs"] == expected_tokens
+    assert "unigrams" in session.dataframe.columns
+    assert session.artifacts.get("tokens") == expected_tokens
+
+
+def test_inspect_data_tool():
+    # Initialize fresh session and tools
+    session = SessionState()
+    premade_tools, _ = load_workspace_tools("premade_tools", session)
+    load_dataset_tool = next(t for t in premade_tools if t.name == "load_dataset_tool")
+
+    tools = make_tools(session)
+    inspect_data_tool = next(t for t in tools if t.name == "inspect_data_tool")
+
+    # Load fixture data into session
+    load_dataset_tool.invoke({
+        "file_path": "agent_dev/sample_fixture.csv",
+        "text_column": "text",
+        "label_column": "label"
+    })
+
+    # Invoke inspect_data_tool with n=2, seed=42
+    result = inspect_data_tool.invoke({"n": 2, "max_characters": 200, "seed": 42})
+
+    # Assert label distribution (50% catA, 50% catB)
+    dist = result["label_distribution"]
+    cat_map = {item["category_name"]: item["percentage"] for item in dist}
+    assert cat_map["catA"] == 50.0
+    assert cat_map["catB"] == 50.0
+
+    # Assert grouped samples for catA and catB with n=2, seed=42
+    samples = result["grouped_samples"]
+    assert "catA" in samples
+    assert "catB" in samples
+    assert len(samples["catA"]) == 2
+    assert len(samples["catB"]) == 2
+
+    # Verify exact sampled text entries
+    assert "always alpha alpha beta" in samples["catA"]
+    assert "always gamma gamma delta" in samples["catB"]
