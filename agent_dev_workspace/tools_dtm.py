@@ -1,6 +1,8 @@
 from typing import Dict, Any, List
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.feature_extraction.text import CountVectorizer
 from langchain_core.tools import tool
 
@@ -160,4 +162,79 @@ def make_tools(session):
         session.store_result("term_frequency_tool", {}, summary, full_report=df_freq)
         return summary
 
-    return [build_dtm_tool, term_frequency_tool]
+    @tool
+    def dtm_heatmap_tool(n_terms: int = 20, n_documents: int = 20) -> Dict[str, Any]:
+        """Renders a Seaborn heatmap of a positional slice of the global DTM.
+
+        Prerequisite: build_dtm_tool must be run first so session.feature_matrix
+        and session.feature_names are available.
+
+        Args:
+            n_terms: Number of terms (columns) to slice from start (default 20).
+            n_documents: Number of documents (rows) to slice from start (default 20).
+
+        Returns:
+            Dict containing result_id, sliced_matrix (nested list), doc_labels,
+            and term_labels.
+        """
+        result_id = session.next_result_id("dtm_heatmap")
+
+        if session.feature_matrix is None or session.feature_names is None:
+            summary = {
+                "result_id": result_id,
+                "error": "Prerequisite missing: build_dtm_tool must be run before dtm_heatmap_tool.",
+                "sliced_matrix": [],
+                "doc_labels": [],
+                "term_labels": [],
+            }
+            session.store_result("dtm_heatmap_tool", {"n_terms": n_terms, "n_documents": n_documents}, summary)
+            return summary
+
+        matrix = session.feature_matrix
+        feature_names = session.feature_names
+
+        # Explicitly clamp bounds if matrix dimensions are smaller than requested
+        total_docs, total_terms = matrix.shape
+        actual_docs = min(n_documents, total_docs)
+        actual_terms = min(n_terms, total_terms)
+
+        # Take positional slices bounded by actual dimensions
+        sliced_sparse = matrix[0:actual_docs, 0:actual_terms]
+        sliced_dense = sliced_sparse.toarray() if hasattr(sliced_sparse, "toarray") else np.asarray(sliced_sparse)
+
+        term_labels = feature_names[0:actual_terms]
+        doc_labels = [f"Doc {i}" for i in range(actual_docs)]
+
+        # Build Seaborn heatmap figure
+        fig, ax = plt.subplots(figsize=(max(6, len(term_labels) * 0.5), max(4, len(doc_labels) * 0.4)))
+        sns.heatmap(
+            sliced_dense,
+            annot=True,
+            fmt="d",
+            cmap="Blues",
+            xticklabels=term_labels,
+            yticklabels=doc_labels,
+            ax=ax,
+        )
+        ax.set_title("Document-Term Matrix Heatmap (Raw Counts)")
+        ax.set_xlabel("Terms")
+        ax.set_ylabel("Documents")
+        plt.tight_layout()
+
+        # Set pending figure for frontend rendering per contract
+        session.pending_figure = fig
+
+        # Convert numpy array to JSON-serializable nested Python list
+        sliced_matrix = sliced_dense.tolist()
+
+        summary = {
+            "result_id": result_id,
+            "sliced_matrix": sliced_matrix,
+            "doc_labels": doc_labels,
+            "term_labels": term_labels,
+        }
+
+        session.store_result("dtm_heatmap_tool", {"n_terms": n_terms, "n_documents": n_documents}, summary)
+        return summary
+
+    return [build_dtm_tool, term_frequency_tool, dtm_heatmap_tool]
