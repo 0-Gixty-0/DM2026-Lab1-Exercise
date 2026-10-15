@@ -237,7 +237,7 @@ def make_tools(session):
         session.pending_figure per contract requirement.
 
         Returns:
-            Dict containing result_id, text_lengths, overall_stats, and per_category_stats.
+            Dict containing result_id, n_documents, overall_stats, and per_category_stats.
         """
         result_id = session.next_result_id("describe_data")
 
@@ -245,7 +245,7 @@ def make_tools(session):
             summary = {
                 "result_id": result_id,
                 "error": "No dataframe loaded in session.",
-                "text_lengths": [],
+                "n_documents": 0,
                 "overall_stats": {},
                 "per_category_stats": {},
             }
@@ -257,7 +257,6 @@ def make_tools(session):
 
         # Character count per document in dataframe order
         df["text_length"] = df[text_column].apply(lambda x: len(str(x)) if pd.notna(x) and x is not None else 0)
-        text_lengths = df["text_length"].tolist()
 
         # Overall descriptive stats using helper function
         overall_stats = _compute_describe_stats(df["text_length"])
@@ -286,12 +285,13 @@ def make_tools(session):
 
         summary = {
             "result_id": result_id,
-            "text_lengths": text_lengths,
+            "n_documents": len(df),
             "overall_stats": overall_stats,
             "per_category_stats": per_category_stats,
         }
 
-        session.store_result("describe_data_tool", {}, summary)
+        # Store full report with text_lengths in session.results_store
+        session.store_result("describe_data_tool", {}, summary, full_report=df[["text_length"]])
         return summary
 
     @tool
@@ -304,7 +304,7 @@ def make_tools(session):
             column: Text column to tokenize (default "text").
 
         Returns:
-            Dict containing result_id, n_documents, and tokenized_docs.
+            Dict containing result_id, n_documents, total_tokens, and sample_tokens.
         """
         result_id = session.next_result_id("tokenize")
 
@@ -313,7 +313,8 @@ def make_tools(session):
                 "result_id": result_id,
                 "error": "No dataframe loaded in session.",
                 "n_documents": 0,
-                "tokenized_docs": [],
+                "total_tokens": 0,
+                "sample_tokens": [],
             }
             session.store_result("tokenize_tool", {"column": column}, summary)
             return summary
@@ -325,7 +326,8 @@ def make_tools(session):
                 "result_id": result_id,
                 "error": f"Column '{column}' not found in dataframe.",
                 "n_documents": 0,
-                "tokenized_docs": [],
+                "total_tokens": 0,
+                "sample_tokens": [],
             }
             session.store_result("tokenize_tool", {"column": column}, summary)
             return summary
@@ -347,10 +349,14 @@ def make_tools(session):
         # Save tokens artifact into session
         session.artifacts["tokens"] = tokenized_docs
 
+        total_tokens = sum(len(doc_tokens) for doc_tokens in tokenized_docs)
+        sample_tokens = tokenized_docs[:3]  # First 3 documents preview for LLM context
+
         summary = {
             "result_id": result_id,
             "n_documents": len(df),
-            "tokenized_docs": tokenized_docs,
+            "total_tokens": total_tokens,
+            "sample_tokens": sample_tokens,
         }
 
         session.store_result("tokenize_tool", {"column": column}, summary)

@@ -29,7 +29,7 @@ def make_tools(session):
 
         Returns:
             Dict containing result_id, n_documents, n_terms, non_zero, total_elements,
-            and sparsity_pct.
+            sparsity_pct, and sample_feature_names.
         """
         result_id = session.next_result_id("build_dtm")
 
@@ -39,6 +39,10 @@ def make_tools(session):
                 "error": "No dataframe loaded in session.",
                 "n_documents": 0,
                 "n_terms": 0,
+                "non_zero": 0,
+                "total_elements": 0,
+                "sparsity_pct": 0.0,
+                "sample_feature_names": [],
             }
             session.store_result("build_dtm_tool", {}, summary)
             return summary
@@ -51,6 +55,10 @@ def make_tools(session):
                 "error": f"Column '{column}' not found in dataframe.",
                 "n_documents": len(df),
                 "n_terms": 0,
+                "non_zero": 0,
+                "total_elements": 0,
+                "sparsity_pct": 0.0,
+                "sample_feature_names": [],
             }
             session.store_result("build_dtm_tool", {}, summary)
             return summary
@@ -77,6 +85,10 @@ def make_tools(session):
                 "error": f"Error building DTM: {str(e)}",
                 "n_documents": len(df),
                 "n_terms": 0,
+                "non_zero": 0,
+                "total_elements": 0,
+                "sparsity_pct": 0.0,
+                "sample_feature_names": [],
             }
             session.store_result("build_dtm_tool", {}, summary)
             return summary
@@ -108,7 +120,7 @@ def make_tools(session):
             "non_zero": non_zero,
             "total_elements": total_elements,
             "sparsity_pct": sparsity_pct,
-            "feature_names": feature_names,
+            "sample_feature_names": feature_names[:15],
         }
 
         session.store_result("build_dtm_tool", {}, summary)
@@ -122,7 +134,7 @@ def make_tools(session):
         and session.feature_names are available.
 
         Returns:
-            Dict containing result_id, term_frequencies list, and n_terms.
+            Dict containing result_id, n_terms, total_corpus_words, and top_15_terms.
         """
         result_id = session.next_result_id("term_frequency")
 
@@ -131,7 +143,8 @@ def make_tools(session):
                 "result_id": result_id,
                 "error": "Prerequisite missing: build_dtm_tool must be run before term_frequency_tool.",
                 "n_terms": 0,
-                "term_frequencies": [],
+                "total_corpus_words": 0,
+                "top_15_terms": [],
             }
             session.store_result("term_frequency_tool", {}, summary)
             return summary
@@ -149,13 +162,14 @@ def make_tools(session):
             "total_frequency": col_sums.astype(int),
         })
 
-        # Convert to list of dict records for term_frequencies output
-        term_frequencies = df_freq.to_dict(orient="records")
+        # Extract top 15 terms for LLM summary context
+        top_15_terms = df_freq.sort_values(by="total_frequency", ascending=False).head(15).to_dict(orient="records")
 
         summary = {
             "result_id": result_id,
             "n_terms": len(feature_names),
-            "term_frequencies": term_frequencies,
+            "total_corpus_words": int(col_sums.sum()),
+            "top_15_terms": top_15_terms,
         }
 
         # Store full_report DataFrame for visualize_result_tool

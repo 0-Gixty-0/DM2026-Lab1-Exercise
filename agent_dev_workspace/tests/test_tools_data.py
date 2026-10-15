@@ -135,9 +135,10 @@ def test_describe_data_tool():
     # Invoke describe_data_tool
     result = describe_data_tool.invoke({})
 
-    # Assert Known Answer #18 text_lengths
+    # Assert Known Answer #18 text_lengths via full_report in session.results_store
     expected_text_lengths = [29, 23, 17, 30, 24, 18, 18, 0]
-    assert result["text_lengths"] == expected_text_lengths
+    full_report = session.results_store[result["result_id"]]["full_report"]
+    assert full_report["text_length"].tolist() == expected_text_lengths
 
     # Assert Known Answer #18 overall stats
     overall = result["overall_stats"]
@@ -207,7 +208,9 @@ def test_tokenize_tool():
         [],
     ]
 
-    assert result["tokenized_docs"] == expected_tokens
+    assert result["n_documents"] == 8
+    assert result["total_tokens"] == 27
+    assert result["sample_tokens"] == expected_tokens[:3]
     assert "unigrams" in session.dataframe.columns
     assert session.artifacts.get("tokens") == expected_tokens
 

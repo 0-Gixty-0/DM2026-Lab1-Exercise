@@ -29,7 +29,7 @@ def test_variance_filter_tool():
     # Invoke variance_filter_tool with threshold=0.15
     result = variance_filter_tool.invoke({"threshold": 0.15})
 
-    # Assert Known Answer #5 variances in TEST_FIXTURE.md
+    # Assert Known Answer #5 variances in TEST_FIXTURE.md via top_15_terms in summary
     expected_variances = {
         "alpha": 1.1875,
         "always": 0.109375,
@@ -38,15 +38,17 @@ def test_variance_filter_tool():
         "gamma": 1.109375,
     }
 
-    term_details_map = {d["term"]: d["variance"] for d in result["term_details"]}
+    term_details_map = {item["term"]: item["variance"] for item in result["top_15_terms"]}
+
     for term, exp_var in expected_variances.items():
         assert term in term_details_map
         assert np.isclose(term_details_map[term], exp_var, atol=1e-3)
 
-    # Assert threshold=0.15 filtering results from Known Answer #5
-    # Keeps alpha, beta, delta, gamma; removes always
-    assert sorted(result["kept_terms"]) == ["alpha", "beta", "delta", "gamma"]
-    assert result["removed_terms"] == ["always"]
+    # Assert threshold=0.15 filtering counts from Known Answer #5
+    # Keeps alpha, beta, delta, gamma (4 terms); removes always (1 term)
+    assert result["n_initial_terms"] == 5
+    assert result["n_kept_terms"] == 4
+    assert result["n_removed_terms"] == 1
 
 
 def test_pearson_filter_tool():
@@ -72,7 +74,7 @@ def test_pearson_filter_tool():
     # Invoke pearson_filter_tool with target_class="catB"
     result = pearson_filter_tool.invoke({"target_class": "catB", "threshold": 0.0})
 
-    # Assert Known Answer #6 Pearson r values in TEST_FIXTURE.md
+    # Assert Known Answer #6 Pearson r values in TEST_FIXTURE.md via top_15_terms in summary
     expected_pearson = {
         "alpha": -0.6882,
         "always": 0.3780,
@@ -81,10 +83,15 @@ def test_pearson_filter_tool():
         "gamma": 0.8307,
     }
 
-    corr_map = {d["term"]: d["pearson_r"] for d in result["term_correlations"]}
+    corr_map = {item["term"]: item["pearson_r"] for item in result["top_15_terms"]}
+
     for term, exp_r in expected_pearson.items():
         assert term in corr_map
         assert np.isclose(corr_map[term], exp_r, atol=1e-3)
+
+    assert result["n_initial_terms"] == 5
+    assert result["n_kept_terms"] == 5
+    assert result["n_removed_terms"] == 0
 
 
 def test_spearman_filter_tool():
@@ -110,7 +117,7 @@ def test_spearman_filter_tool():
     # Invoke spearman_filter_tool with target_class="catB"
     result = spearman_filter_tool.invoke({"target_class": "catB", "threshold": 0.0})
 
-    # Assert Known Answer #6 Spearman r values in TEST_FIXTURE.md
+    # Assert Known Answer #6 Spearman r values in TEST_FIXTURE.md via top_15_terms in summary
     expected_spearman = {
         "alpha": -0.7500,
         "always": 0.3780,
@@ -119,7 +126,12 @@ def test_spearman_filter_tool():
         "gamma": 0.9363,
     }
 
-    corr_map = {d["term"]: d["spearman_r"] for d in result["term_correlations"]}
+    corr_map = {item["term"]: item["spearman_r"] for item in result["top_15_terms"]}
+
     for term, exp_rho in expected_spearman.items():
         assert term in corr_map
         assert np.isclose(corr_map[term], exp_rho, atol=1e-3)
+
+    assert result["n_initial_terms"] == 5
+    assert result["n_kept_terms"] == 5
+    assert result["n_removed_terms"] == 0

@@ -26,8 +26,8 @@ def test_build_dtm_tool():
 
     # Assert Known Answer #4 requirements from TEST_FIXTURE.md
     expected_vocab = ["alpha", "always", "beta", "delta", "gamma"]
-    assert result["feature_names"] == expected_vocab
     assert session.feature_names == expected_vocab
+    assert result["sample_feature_names"] == expected_vocab[:15]
 
     assert result["n_documents"] == 8
     assert result["n_terms"] == 5
@@ -62,7 +62,7 @@ def test_term_frequency_tool():
     # Invoke term_frequency_tool
     result = term_frequency_tool.invoke({})
 
-    # Assert Known Answer #14 term frequencies in TEST_FIXTURE.md
+    # Assert Known Answer #14 term frequencies in TEST_FIXTURE.md via top_15_terms
     expected_freqs = {
         "alpha": 6,
         "always": 7,
@@ -71,10 +71,13 @@ def test_term_frequency_tool():
         "gamma": 7,
     }
 
-    tf_map = {item["term"]: item["total_frequency"] for item in result["term_frequencies"]}
+    tf_map = {item["term"]: item["total_frequency"] for item in result["top_15_terms"]}
     for term, exp_count in expected_freqs.items():
         assert term in tf_map
         assert tf_map[term] == exp_count
+
+    assert result["n_terms"] == 5
+    assert result["total_corpus_words"] == 27
 
 
 def test_dtm_heatmap_tool_fixture():

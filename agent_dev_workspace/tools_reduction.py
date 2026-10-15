@@ -13,7 +13,7 @@ def make_tools(session):
     @tool
     def reduce_dimensions_tool(
         method: Literal["pca", "tsne", "umap"] = "pca",
-        n_components: Literal[2, 3] = 2,
+        n_components: int = 2,
         seed: int = 42,
         perplexity: float = 30.0,
         n_neighbors: int = 15,
@@ -36,6 +36,16 @@ def make_tools(session):
             category_names, and explained_variance_ratio (PCA only).
         """
         result_id = session.next_result_id("reduce_dimensions")
+
+        if n_components not in (2, 3):
+            summary = {
+                "result_id": result_id,
+                "error": f"Invalid n_components: {n_components}. Only 2 or 3 dimensions are supported.",
+                "coordinates": [],
+                "explained_variance_ratio": None,
+            }
+            session.store_result("reduce_dimensions_tool", {"method": method, "n_components": n_components}, summary)
+            return summary
 
         if session.feature_matrix is None:
             summary = {

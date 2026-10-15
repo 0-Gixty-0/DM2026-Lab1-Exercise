@@ -49,6 +49,7 @@ agent_pipeline/keys/*
 # distinguished by filename rather than by directory.
 # session_logs/*.jsonl
 # session_logs/*.jsonl.enc
+session_logs/agent_pipeline_session.jsonl.enc
 # plots/*.png
 # reports/*.md
 

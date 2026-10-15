@@ -18,8 +18,8 @@ def make_tools(session):
                        Terms with variance < threshold are flagged for removal.
 
         Returns:
-            Dict containing result_id, threshold, kept_terms, removed_terms,
-            term_details, and summary statistics.
+            Dict containing result_id, threshold, n_initial_terms, n_kept_terms,
+            n_removed_terms, and top_15_terms (list of dicts with term and variance).
         """
         result_id = session.next_result_id("variance_filter")
 
@@ -27,8 +27,10 @@ def make_tools(session):
             summary = {
                 "result_id": result_id,
                 "error": "Prerequisite missing: build_dtm_tool must be run before variance_filter_tool.",
-                "kept_terms": [],
-                "removed_terms": [],
+                "n_initial_terms": 0,
+                "n_kept_terms": 0,
+                "n_removed_terms": 0,
+                "top_15_terms": [],
             }
             session.store_result("variance_filter_tool", {"threshold": threshold}, summary)
             return summary
@@ -37,29 +39,19 @@ def make_tools(session):
         matrix_dense = session.feature_matrix.toarray() if hasattr(session.feature_matrix, "toarray") else np.asarray(session.feature_matrix)
         feature_names = session.feature_names
 
-        # Compute per-document counts and population variance per term
-        # ddof=0 matches pandas/numpy standard population variance used in spec fixture
-        term_details = []
-        kept_terms = []
-        removed_terms = []
-
+        # Compute population variance per term
+        n_kept = 0
+        n_removed = 0
         report_rows = []
 
         for i, term in enumerate(feature_names):
-            counts = matrix_dense[:, i].tolist()
+            counts = matrix_dense[:, i]
             variance = float(np.var(counts, ddof=0))
 
-            detail = {
-                "term": term,
-                "counts_per_document": counts,
-                "variance": variance,
-            }
-            term_details.append(detail)
-
             if variance >= threshold:
-                kept_terms.append(term)
+                n_kept += 1
             else:
-                removed_terms.append(term)
+                n_removed += 1
 
             report_rows.append({"term": term, "variance": variance})
 
@@ -68,16 +60,17 @@ def make_tools(session):
         full_report = pd.DataFrame(report_rows)
         if not full_report.empty:
             full_report = full_report.sort_values(by="variance", ascending=False).reset_index(drop=True)
+            top_15_terms = full_report.head(15).to_dict(orient="records")
+        else:
+            top_15_terms = []
 
         summary = {
             "result_id": result_id,
             "threshold": threshold,
             "n_initial_terms": len(feature_names),
-            "n_kept_terms": len(kept_terms),
-            "n_removed_terms": len(removed_terms),
-            "kept_terms": kept_terms,
-            "removed_terms": removed_terms,
-            "term_details": term_details,
+            "n_kept_terms": n_kept,
+            "n_removed_terms": n_removed,
+            "top_15_terms": top_15_terms,
         }
 
         # Pass full_report to session.store_result per visualize_result_tool spec
@@ -93,8 +86,8 @@ def make_tools(session):
             threshold: Absolute correlation threshold for keeping terms (default 0.0).
 
         Returns:
-            Dict containing result_id, target_class, threshold, n_kept_terms,
-            n_removed_terms, kept_terms, removed_terms, top_15_terms, and term_correlations.
+            Dict containing result_id, target_class, threshold, n_initial_terms,
+            n_kept_terms, n_removed_terms, and top_15_terms (list of dicts with term and pearson_r).
         """
         result_id = session.next_result_id("pearson_filter")
 
@@ -102,8 +95,9 @@ def make_tools(session):
             summary = {
                 "result_id": result_id,
                 "error": "Prerequisite missing: build_dtm_tool must be run first.",
-                "kept_terms": [],
-                "removed_terms": [],
+                "n_initial_terms": 0,
+                "n_kept_terms": 0,
+                "n_removed_terms": 0,
                 "top_15_terms": [],
             }
             session.store_result("pearson_filter_tool", {"target_class": target_class, "threshold": threshold}, summary)
@@ -116,9 +110,8 @@ def make_tools(session):
         # Convert target class to binary one-vs-rest array (1 if target_class, 0 otherwise)
         binary_target = (labels == target_class).astype(float)
 
-        term_correlations = []
-        kept_terms = []
-        removed_terms = []
+        n_kept = 0
+        n_removed = 0
         report_rows = []
 
         for i, term in enumerate(feature_names):
@@ -130,12 +123,11 @@ def make_tools(session):
                 r_val = float(r) if not np.isnan(r) else 0.0
 
             abs_r = abs(r_val)
-            term_correlations.append({"term": term, "pearson_r": r_val, "abs_pearson_r": abs_r})
 
             if abs_r >= threshold:
-                kept_terms.append(term)
+                n_kept += 1
             else:
-                removed_terms.append(term)
+                n_removed += 1
 
             report_rows.append({"term": term, "pearson_r": r_val, "abs_r": abs_r})
 
@@ -144,7 +136,7 @@ def make_tools(session):
         if not full_report.empty:
             full_report = full_report.sort_values(by="abs_r", ascending=False).reset_index(drop=True)
             full_report_export = full_report[["term", "pearson_r"]].copy()
-            top_15_terms = full_report["term"].head(15).tolist()
+            top_15_terms = full_report[["term", "pearson_r"]].head(15).to_dict(orient="records")
         else:
             full_report_export = pd.DataFrame(columns=["term", "pearson_r"])
             top_15_terms = []
@@ -154,12 +146,9 @@ def make_tools(session):
             "target_class": target_class,
             "threshold": threshold,
             "n_initial_terms": len(feature_names),
-            "n_kept_terms": len(kept_terms),
-            "n_removed_terms": len(removed_terms),
-            "kept_terms": kept_terms,
-            "removed_terms": removed_terms,
+            "n_kept_terms": n_kept,
+            "n_removed_terms": n_removed,
             "top_15_terms": top_15_terms,
-            "term_correlations": term_correlations,
         }
 
         session.store_result("pearson_filter_tool", {"target_class": target_class, "threshold": threshold}, summary, full_report=full_report_export)
@@ -174,8 +163,8 @@ def make_tools(session):
             threshold: Absolute correlation threshold for keeping terms (default 0.0).
 
         Returns:
-            Dict containing result_id, target_class, threshold, n_kept_terms,
-            n_removed_terms, kept_terms, removed_terms, top_15_terms, and term_correlations.
+            Dict containing result_id, target_class, threshold, n_initial_terms,
+            n_kept_terms, n_removed_terms, and top_15_terms (list of dicts with term and spearman_r).
         """
         result_id = session.next_result_id("spearman_filter")
 
@@ -183,8 +172,9 @@ def make_tools(session):
             summary = {
                 "result_id": result_id,
                 "error": "Prerequisite missing: build_dtm_tool must be run first.",
-                "kept_terms": [],
-                "removed_terms": [],
+                "n_initial_terms": 0,
+                "n_kept_terms": 0,
+                "n_removed_terms": 0,
                 "top_15_terms": [],
             }
             session.store_result("spearman_filter_tool", {"target_class": target_class, "threshold": threshold}, summary)
@@ -197,9 +187,8 @@ def make_tools(session):
         # Convert target class to binary one-vs-rest array (1 if target_class, 0 otherwise)
         binary_target = (labels == target_class).astype(float)
 
-        term_correlations = []
-        kept_terms = []
-        removed_terms = []
+        n_kept = 0
+        n_removed = 0
         report_rows = []
 
         for i, term in enumerate(feature_names):
@@ -211,12 +200,11 @@ def make_tools(session):
                 rho_val = float(rho) if not np.isnan(rho) else 0.0
 
             abs_rho = abs(rho_val)
-            term_correlations.append({"term": term, "spearman_r": rho_val, "abs_spearman_r": abs_rho})
 
             if abs_rho >= threshold:
-                kept_terms.append(term)
+                n_kept += 1
             else:
-                removed_terms.append(term)
+                n_removed += 1
 
             report_rows.append({"term": term, "spearman_r": rho_val, "abs_rho": abs_rho})
 
@@ -225,7 +213,7 @@ def make_tools(session):
         if not full_report.empty:
             full_report = full_report.sort_values(by="abs_rho", ascending=False).reset_index(drop=True)
             full_report_export = full_report[["term", "spearman_r"]].copy()
-            top_15_terms = full_report["term"].head(15).tolist()
+            top_15_terms = full_report[["term", "spearman_r"]].head(15).to_dict(orient="records")
         else:
             full_report_export = pd.DataFrame(columns=["term", "spearman_r"])
             top_15_terms = []
@@ -235,12 +223,9 @@ def make_tools(session):
             "target_class": target_class,
             "threshold": threshold,
             "n_initial_terms": len(feature_names),
-            "n_kept_terms": len(kept_terms),
-            "n_removed_terms": len(removed_terms),
-            "kept_terms": kept_terms,
-            "removed_terms": removed_terms,
+            "n_kept_terms": n_kept,
+            "n_removed_terms": n_removed,
             "top_15_terms": top_15_terms,
-            "term_correlations": term_correlations,
         }
 
         session.store_result("spearman_filter_tool", {"target_class": target_class, "threshold": threshold}, summary, full_report=full_report_export)

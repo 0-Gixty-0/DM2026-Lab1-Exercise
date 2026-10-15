@@ -13,8 +13,8 @@ def make_tools(session):
         category_name: str,
         filtering_method: Literal["variance", "tfidf", "term_frequency"] = "tfidf",
         algorithm: Literal["fpgrowth", "topk", "maxfpgrowth"] = "fpgrowth",
-        min_sup: int = 1,
-        k: int = 1,
+        min_sup: Optional[int] = None,
+        k: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Mines frequent patterns per category using PAMI after local text filtering.
 
@@ -30,14 +30,42 @@ def make_tools(session):
             category_name: Category label string to mine (e.g. "catA" or "catB").
             filtering_method: Vocabulary filter ("variance", "tfidf", or "term_frequency", default "tfidf").
             algorithm: PAMI mining algorithm ("fpgrowth", "topk", or "maxfpgrowth", default "fpgrowth").
-            min_sup: Minimum support threshold for fpgrowth / maxfpgrowth (default 1).
-            k: Top-K pattern limit for topk algorithm (default 1).
+            min_sup: Minimum support threshold for fpgrowth / maxfpgrowth (required for fpgrowth/maxfpgrowth).
+            k: Top-K pattern limit for topk algorithm (required for topk).
 
         Returns:
             Dict containing result_id, category_name, filtering_method, algorithm,
             min_sup, k, patterns (list of dicts with pattern and support), and note.
         """
         result_id = session.next_result_id("mine_patterns")
+
+        # Validate required arguments depending on algorithm
+        algo_lower = algorithm.lower()
+        if algo_lower in ["fpgrowth", "maxfpgrowth"] and min_sup is None:
+            summary = {
+                "result_id": result_id,
+                "category_name": category_name,
+                "filtering_method": filtering_method,
+                "algorithm": algorithm,
+                "error": f"min_sup is required when algorithm='{algorithm}'",
+                "patterns": [],
+                "note": f"missing min_sup for algorithm '{algorithm}'",
+            }
+            session.store_result("mine_patterns_tool", {"category_name": category_name}, summary)
+            return summary
+
+        if algo_lower == "topk" and k is None:
+            summary = {
+                "result_id": result_id,
+                "category_name": category_name,
+                "filtering_method": filtering_method,
+                "algorithm": algorithm,
+                "error": "k is required when algorithm='topk'",
+                "patterns": [],
+                "note": "missing k for algorithm 'topk'",
+            }
+            session.store_result("mine_patterns_tool", {"category_name": category_name}, summary)
+            return summary
 
         # Define explicit artifact key per contract: f"patterns_{category_name}_{filtering_method}_{algorithm}"
         artifact_key = f"patterns_{category_name}_{filtering_method}_{algorithm}"
@@ -194,7 +222,6 @@ def make_tools(session):
         note = "success"
 
         try:
-            algo_lower = algorithm.lower()
             if algo_lower == "fpgrowth":
                 from PAMI.frequentPattern.basic import FPGrowth
                 miner = FPGrowth.FPGrowth(tmp_path, minSup=min_sup, sep="\t")
