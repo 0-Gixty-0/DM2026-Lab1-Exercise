@@ -26,7 +26,7 @@ def test_mine_patterns_fpgrowth_fixture_17():
         "algorithm": "fpgrowth",
         "min_sup": 1,
     })
-    assert res_var_catA["patterns"] == []
+    assert res_var_catA["top_patterns"] == []
     assert "no terms survived" in res_var_catA["note"].lower()
 
     res_tf_catB = mine_patterns_tool.invoke({
@@ -35,7 +35,7 @@ def test_mine_patterns_fpgrowth_fixture_17():
         "algorithm": "fpgrowth",
         "min_sup": 1,
     })
-    assert res_tf_catB["patterns"] == []
+    assert res_tf_catB["top_patterns"] == []
     assert "no terms survived" in res_tf_catB["note"].lower()
 
     # 2. Test tfidf filtering method -> catA keeps alpha (support 3), catB keeps gamma (support 4)
@@ -46,7 +46,7 @@ def test_mine_patterns_fpgrowth_fixture_17():
         "algorithm": "fpgrowth",
         "min_sup": 1,
     })
-    pats_catA = res_tfidf_catA["patterns"]
+    pats_catA = res_tfidf_catA["top_patterns"]
     assert len(pats_catA) == 1
     assert "alpha" in pats_catA[0]["pattern"]
     assert pats_catA[0]["support"] == 3
@@ -59,7 +59,7 @@ def test_mine_patterns_fpgrowth_fixture_17():
         "algorithm": "fpgrowth",
         "min_sup": 4,
     })
-    assert res_tfidf_catA_sup4["patterns"] == []
+    assert res_tfidf_catA_sup4["top_patterns"] == []
 
     # catB with min_sup=1
     res_tfidf_catB = mine_patterns_tool.invoke({
@@ -68,7 +68,7 @@ def test_mine_patterns_fpgrowth_fixture_17():
         "algorithm": "fpgrowth",
         "min_sup": 1,
     })
-    pats_catB = res_tfidf_catB["patterns"]
+    pats_catB = res_tfidf_catB["top_patterns"]
     assert len(pats_catB) == 1
     assert "gamma" in pats_catB[0]["pattern"]
     assert pats_catB[0]["support"] == 4
@@ -97,7 +97,7 @@ def test_mine_patterns_topk_and_maxfpgrowth_fixture_20():
         "algorithm": "topk",
         "k": 1,
     })
-    pats_topk_catA = res_topk_catA["patterns"]
+    pats_topk_catA = res_topk_catA["top_patterns"]
     assert len(pats_topk_catA) == 1
     assert "alpha" in pats_topk_catA[0]["pattern"]
     assert pats_topk_catA[0]["support"] == 3
@@ -108,7 +108,7 @@ def test_mine_patterns_topk_and_maxfpgrowth_fixture_20():
         "algorithm": "topk",
         "k": 1,
     })
-    pats_topk_catB = res_topk_catB["patterns"]
+    pats_topk_catB = res_topk_catB["top_patterns"]
     assert len(pats_topk_catB) == 1
     assert "gamma" in pats_topk_catB[0]["pattern"]
     assert pats_topk_catB[0]["support"] == 4
@@ -121,7 +121,7 @@ def test_mine_patterns_topk_and_maxfpgrowth_fixture_20():
         "algorithm": "maxfpgrowth",
         "min_sup": 1,
     })
-    assert res_maxfp_catA["patterns"] == []
+    assert res_maxfp_catA["top_patterns"] == []
 
     res_maxfp_catB = mine_patterns_tool.invoke({
         "category_name": "catB",
@@ -129,4 +129,4 @@ def test_mine_patterns_topk_and_maxfpgrowth_fixture_20():
         "algorithm": "maxfpgrowth",
         "min_sup": 1,
     })
-    assert res_maxfp_catB["patterns"] == []
+    assert res_maxfp_catB["top_patterns"] == []

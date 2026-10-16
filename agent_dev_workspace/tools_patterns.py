@@ -35,7 +35,7 @@ def make_tools(session):
 
         Returns:
             Dict containing result_id, category_name, filtering_method, algorithm,
-            min_sup, k, patterns (list of dicts with pattern and support), and note.
+            min_sup, k, total_patterns_found, top_patterns (list of dicts with top patterns), and note.
         """
         result_id = session.next_result_id("mine_patterns")
 
@@ -48,7 +48,8 @@ def make_tools(session):
                 "filtering_method": filtering_method,
                 "algorithm": algorithm,
                 "error": f"min_sup is required when algorithm='{algorithm}'",
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": f"missing min_sup for algorithm '{algorithm}'",
             }
             session.store_result("mine_patterns_tool", {"category_name": category_name}, summary)
@@ -61,7 +62,8 @@ def make_tools(session):
                 "filtering_method": filtering_method,
                 "algorithm": algorithm,
                 "error": "k is required when algorithm='topk'",
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": "missing k for algorithm 'topk'",
             }
             session.store_result("mine_patterns_tool", {"category_name": category_name}, summary)
@@ -74,7 +76,8 @@ def make_tools(session):
             summary = {
                 "result_id": result_id,
                 "error": "No dataframe loaded in session.",
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": "no dataframe loaded",
             }
             session.artifacts[artifact_key] = []
@@ -92,7 +95,8 @@ def make_tools(session):
             summary = {
                 "result_id": result_id,
                 "error": f"Category column '{category_col}' not found in dataframe.",
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": f"column '{category_col}' missing",
             }
             session.artifacts[artifact_key] = []
@@ -108,7 +112,8 @@ def make_tools(session):
                 "category_name": category_name,
                 "filtering_method": filtering_method,
                 "algorithm": algorithm,
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": f"no documents found for category '{category_name}'",
             }
             session.artifacts[artifact_key] = []
@@ -126,7 +131,8 @@ def make_tools(session):
                 "category_name": category_name,
                 "filtering_method": filtering_method,
                 "algorithm": algorithm,
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": f"no vocabulary extracted after stop words removal: {str(e)}",
             }
             session.artifacts[artifact_key] = []
@@ -139,7 +145,8 @@ def make_tools(session):
                 "category_name": category_name,
                 "filtering_method": filtering_method,
                 "algorithm": algorithm,
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": "no terms survived stopword removal",
             }
             session.artifacts[artifact_key] = []
@@ -182,7 +189,8 @@ def make_tools(session):
                 "algorithm": algorithm,
                 "min_sup": min_sup if algorithm in ["fpgrowth", "maxfpgrowth"] else None,
                 "k": k if algorithm == "topk" else None,
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": f"no terms survived {filtering_method} filtering",
             }
             session.artifacts[artifact_key] = []
@@ -205,7 +213,8 @@ def make_tools(session):
                 "category_name": category_name,
                 "filtering_method": filtering_method,
                 "algorithm": algorithm,
-                "patterns": [],
+                "total_patterns_found": 0,
+                "top_patterns": [],
                 "note": "no non-empty transactions generated from filtered terms",
             }
             session.artifacts[artifact_key] = []
@@ -271,7 +280,8 @@ def make_tools(session):
             "algorithm": algorithm,
             "min_sup": min_sup if algorithm in ["fpgrowth", "maxfpgrowth"] else None,
             "k": k if algorithm == "topk" else None,
-            "patterns": patterns,
+            "total_patterns_found": len(patterns),
+            "top_patterns": patterns[:15],
             "note": note,
         }
 
@@ -288,6 +298,7 @@ def make_tools(session):
                 "k": k,
             },
             summary,
+            full_report=patterns,
         )
         return summary
 

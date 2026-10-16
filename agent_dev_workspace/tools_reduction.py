@@ -172,8 +172,9 @@ def make_tools(session):
             "result_id": result_id,
             "method": method_lower,
             "n_components": n_components,
-            "coordinates": coordinates_list,
-            "category_names": category_labels,
+            "n_samples": n_samples,
+            "sample_coordinates": coordinates_list[:5],
+            "category_names": category_labels[:5],
             "explained_variance_ratio": explained_variance_ratio,
         }
 
@@ -187,6 +188,7 @@ def make_tools(session):
                 "n_neighbors": n_neighbors,
             },
             summary,
+            full_report=df_plot,
         )
         return summary
 
@@ -248,10 +250,10 @@ def make_tools(session):
             "result_id": result_id,
             "categories": categories,
             "n_documents": len(binarized_matrix),
-            "binarized_labels": binarized_matrix,
+            "sample_binarized_labels": binarized_matrix[:3],
         }
 
-        session.store_result("binarize_labels_tool", {}, summary)
+        session.store_result("binarize_labels_tool", {}, summary, full_report=binarized_matrix)
         return summary
 
     return [reduce_dimensions_tool, binarize_labels_tool]

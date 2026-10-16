@@ -27,7 +27,7 @@ def test_reduce_dimensions_pca_fixture():
 
     res = reduce_dimensions_tool.invoke({"method": "pca", "n_components": 2})
 
-    # Assert known answer #7 coordinates
+    # Assert known answer #7 coordinates from session.artifacts
     expected_pca_coords = np.array([
         [2.3669, 0.8871],
         [1.7039, 0.2642],
@@ -39,7 +39,7 @@ def test_reduce_dimensions_pca_fixture():
         [0.0894, -1.4822],
     ])
 
-    actual_coords = np.array(res["coordinates"])
+    actual_coords = np.array(session.artifacts["reduced_coords_pca"])
     np.testing.assert_allclose(actual_coords, expected_pca_coords, atol=1e-3)
 
     # Assert explained variance ratio from #7
@@ -96,9 +96,9 @@ def test_reduce_dimensions_tsne_determinism():
         "seed": 42,
     })
 
-    # Assert run 1 and run 2 are identical (deterministic)
-    coords1 = np.array(res1["coordinates"])
-    coords2 = np.array(res2["coordinates"])
+    # Assert run 1 and run 2 are identical (deterministic) using session.artifacts
+    coords1 = np.array(session1.artifacts["reduced_coords_tsne"])
+    coords2 = np.array(session2.artifacts["reduced_coords_tsne"])
     np.testing.assert_allclose(coords1, coords2, atol=1e-5)
     assert coords1.shape == (8, 2)
     assert not np.isnan(coords1).any()
@@ -153,9 +153,9 @@ def test_reduce_dimensions_umap_determinism():
         "seed": 42,
     })
 
-    # Assert run 1 and run 2 are identical (deterministic)
-    coords1 = np.array(res1["coordinates"])
-    coords2 = np.array(res2["coordinates"])
+    # Assert run 1 and run 2 are identical (deterministic) using session.artifacts
+    coords1 = np.array(session1.artifacts["reduced_coords_umap"])
+    coords2 = np.array(session2.artifacts["reduced_coords_umap"])
     np.testing.assert_allclose(coords1, coords2, atol=1e-5)
     assert coords1.shape == (8, 2)
     assert not np.isnan(coords1).any()
@@ -198,5 +198,4 @@ def test_binarize_labels_tool_fixture():
         [1, 0],  # row 7: catA
     ]
 
-    assert res["binarized_labels"] == expected_matrix
     assert session.artifacts["binarized_labels"] == expected_matrix
